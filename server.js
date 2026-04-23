@@ -398,9 +398,8 @@ async function setupWalledGarden() {
     }
     logEvent('system', 'Setting up network walled garden...');
     
-    // 1. Flush existing rules
+    // 1. Flush specific chains only to avoid breaking system networking
     exec('sudo iptables -F FORWARD 2>/dev/null');
-    exec('sudo iptables -F INPUT 2>/dev/null'); // Be careful here, but needed for local access
     exec('sudo iptables -t nat -F PREROUTING 2>/dev/null');
 
     // 2. Allow established connections
