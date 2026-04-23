@@ -197,7 +197,7 @@ class BandwidthAgent {
         }
 
         return new Promise((resolve) => {
-            exec('sudo iptables -L FORWARD -v -n -x 2>/dev/null', (err, stdout) => {
+            exec('sudo iptables -L PAYPERBYTE -v -n -x 2>/dev/null', (err, stdout) => {
                 if (err) {
                     resolve();
                     return;
@@ -361,19 +361,19 @@ class BandwidthAgent {
 
     blockIp(ip) {
         if (process.platform === 'win32' || !isValidIp(ip)) return;
-        exec(`sudo iptables -D FORWARD -s ${ip} -j ACCEPT 2>/dev/null; sudo iptables -A FORWARD -s ${ip} -j DROP 2>/dev/null`);
+        exec(`sudo iptables -D PAYPERBYTE -s ${ip} -j ACCEPT 2>/dev/null; sudo iptables -I PAYPERBYTE 1 -s ${ip} -j DROP 2>/dev/null`);
     }
 
     unblockIp(ip) {
         if (process.platform === 'win32' || !isValidIp(ip)) return;
-        exec(`sudo iptables -D FORWARD -s ${ip} -j DROP 2>/dev/null`);
+        exec(`sudo iptables -D PAYPERBYTE -s ${ip} -j DROP 2>/dev/null`);
     }
 
     addQuotaRule(ip, mb) {
         if (process.platform === 'win32' || !isValidIp(ip)) return;
         const bytes = mb * 1024 * 1024;
-        exec(`sudo iptables -I FORWARD -s ${ip} -m quota --quota ${bytes} -j ACCEPT 2>/dev/null`);
-        exec(`sudo iptables -I FORWARD -d ${ip} -m quota --quota ${bytes} -j ACCEPT 2>/dev/null`);
+        exec(`sudo iptables -I PAYPERBYTE 1 -s ${ip} -m quota --quota ${bytes} -j ACCEPT 2>/dev/null`);
+        exec(`sudo iptables -I PAYPERBYTE 1 -d ${ip} -m quota --quota ${bytes} -j ACCEPT 2>/dev/null`);
     }
 }
 
@@ -398,27 +398,29 @@ async function setupWalledGarden() {
     }
     logEvent('system', 'Setting up network walled garden (Safe Mode)...');
     
-    // 1. Create custom chain if it doesn't exist
+    // 1. Create custom chains if they don't exist (never touches system chains)
     exec('sudo iptables -N PAYPERBYTE 2>/dev/null');
-    // 2. Clear our custom chain ONLY
+    exec('sudo iptables -t nat -N PAYPERBYTE_NAT 2>/dev/null');
+
+    // 2. Clear ONLY our custom chains
     exec('sudo iptables -F PAYPERBYTE 2>/dev/null');
-    // 3. Clear redirection
-    exec('sudo iptables -t nat -F PREROUTING 2>/dev/null');
+    exec('sudo iptables -t nat -F PAYPERBYTE_NAT 2>/dev/null');
 
-    // 4. Insert hook into FORWARD chain (at the top, only once)
+    // 3. Hook into system chains (only if not already hooked)
     exec('sudo iptables -C FORWARD -j PAYPERBYTE 2>/dev/null || sudo iptables -I FORWARD 1 -j PAYPERBYTE');
+    exec('sudo iptables -t nat -C PREROUTING -j PAYPERBYTE_NAT 2>/dev/null || sudo iptables -t nat -I PREROUTING 1 -j PAYPERBYTE_NAT');
 
-    // 5. Allow established, local portal access and DNS in our chain
+    // 4. Allow established connections, DNS and portal access
     exec('sudo iptables -A PAYPERBYTE -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT');
     exec('sudo iptables -A PAYPERBYTE -p udp --dport 53 -j ACCEPT');
     exec('sudo iptables -A PAYPERBYTE -p tcp --dport 3000 -j ACCEPT');
 
-    // 6. REDIRECTION: Captive Portal
+    // 5. Captive Portal redirection (in our NAT chain, not system's)
     const localIp = await getLocalIp();
     logEvent('system', `Captive Portal: Redirecting port 80 to ${localIp}:3000`);
-    exec(`sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j DNAT --to-destination ${localIp}:3000`);
+    exec(`sudo iptables -t nat -A PAYPERBYTE_NAT -p tcp --dport 80 -j DNAT --to-destination ${localIp}:3000`);
 
-    // 7. Final Block in our chain
+    // 6. Final Block in our chain
     exec('sudo iptables -A PAYPERBYTE -j DROP');
     logEvent('system', 'Walled garden active - System rules preserved');
 }
