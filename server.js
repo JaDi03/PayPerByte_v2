@@ -396,47 +396,31 @@ async function setupWalledGarden() {
         logEvent('system', 'Running in simulation mode (Windows)');
         return;
     }
-    logEvent('system', 'Setting up network walled garden...');
+    logEvent('system', 'Setting up network walled garden (Safe Mode)...');
     
-    // 1. Flush specific chains only to avoid breaking system networking
-    exec('sudo iptables -F FORWARD 2>/dev/null');
+    // 1. Create custom chain if it doesn't exist
+    exec('sudo iptables -N PAYPERBYTE 2>/dev/null');
+    // 2. Clear our custom chain ONLY
+    exec('sudo iptables -F PAYPERBYTE 2>/dev/null');
+    // 3. Clear redirection
     exec('sudo iptables -t nat -F PREROUTING 2>/dev/null');
 
-    // 2. Allow established connections
-    exec('sudo iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null');
-    exec('sudo iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null');
+    // 4. Insert hook into FORWARD chain (at the top, only once)
+    exec('sudo iptables -C FORWARD -j PAYPERBYTE 2>/dev/null || sudo iptables -I FORWARD 1 -j PAYPERBYTE');
 
-    // 3. Allow DNS (essential for portal to work)
-    exec('sudo iptables -A INPUT -p udp --dport 53 -j ACCEPT 2>/dev/null');
-    exec('sudo iptables -A FORWARD -p udp --dport 53 -j ACCEPT 2>/dev/null');
+    // 5. Allow established, local portal access and DNS in our chain
+    exec('sudo iptables -A PAYPERBYTE -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT');
+    exec('sudo iptables -A PAYPERBYTE -p udp --dport 53 -j ACCEPT');
+    exec('sudo iptables -A PAYPERBYTE -p tcp --dport 3000 -j ACCEPT');
 
-    // 4. Allow access to the portal itself (Port 3000)
-    exec('sudo iptables -A INPUT -p tcp --dport 3000 -j ACCEPT 2>/dev/null');
-    exec('sudo iptables -A FORWARD -p tcp --dport 3000 -j ACCEPT 2>/dev/null');
-
-    // 5. Whitelist infrastructure
-    for (const domain of WHITELIST_DOMAINS) {
-        exec(`host -t a ${domain} 2>/dev/null`, (err, stdout) => {
-            if (err) return;
-            const ips = stdout.match(/\d+\.\d+\.\d+\.\d+/g);
-            if (ips) {
-                ips.forEach(ip => {
-                    exec(`sudo iptables -A FORWARD -d ${ip} -j ACCEPT 2>/dev/null`);
-                    exec(`sudo iptables -A FORWARD -s ${ip} -j ACCEPT 2>/dev/null`);
-                });
-            }
-        });
-    }
-
-    // 6. REDIRECTION: Redirect all HTTP (port 80) to the Portal (Captive Portal behavior)
-    // This makes the "Login to WiFi" notification appear on phones
+    // 6. REDIRECTION: Captive Portal
     const localIp = await getLocalIp();
-    logEvent('system', `Redirecting port 80 to portal at ${localIp}:3000`);
-    exec(`sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j DNAT --to-destination ${localIp}:3000 2>/dev/null`);
+    logEvent('system', `Captive Portal: Redirecting port 80 to ${localIp}:3000`);
+    exec(`sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j DNAT --to-destination ${localIp}:3000`);
 
-    // 7. Final Block: Drop everything else
-    exec('sudo iptables -A FORWARD -j DROP 2>/dev/null');
-    logEvent('system', 'Walled garden active - Captive Portal enabled');
+    // 7. Final Block in our chain
+    exec('sudo iptables -A PAYPERBYTE -j DROP');
+    logEvent('system', 'Walled garden active - System rules preserved');
 }
 
 // ============================================================
