@@ -128,6 +128,15 @@ async function getMacFromIp(ip) {
     });
 }
 
+function getLocalIp() {
+    return new Promise((resolve) => {
+        exec("ip -4 addr show wlan0 | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}'", (err, stdout) => {
+            if (err || !stdout.trim()) return resolve('10.42.0.1'); // Fallback
+            resolve(stdout.trim().split('\n')[0]);
+        });
+    });
+}
+
 // ============================================================
 // BANDWIDTH AGENT
 // ============================================================
@@ -422,7 +431,8 @@ async function setupWalledGarden() {
 
     // 6. REDIRECTION: Redirect all HTTP (port 80) to the Portal (Captive Portal behavior)
     // This makes the "Login to WiFi" notification appear on phones
-    const localIp = '10.42.0.1'; // Standard IP for NM Hotspot
+    const localIp = await getLocalIp();
+    logEvent('system', `Redirecting port 80 to portal at ${localIp}:3000`);
     exec(`sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j DNAT --to-destination ${localIp}:3000 2>/dev/null`);
 
     // 7. Final Block: Drop everything else
