@@ -415,9 +415,10 @@ async function setupWalledGarden() {
     exec('sudo iptables -C FORWARD -j PAYPERBYTE 2>/dev/null || sudo iptables -I FORWARD 1 -j PAYPERBYTE');
     exec('sudo iptables -t nat -C PREROUTING -j PAYPERBYTE_NAT 2>/dev/null || sudo iptables -t nat -I PREROUTING 1 -j PAYPERBYTE_NAT');
 
-    // 4. Allow established connections, DNS and portal access
+    // 4. Allow established connections, DNS, DHCP and portal access
     exec('sudo iptables -A PAYPERBYTE -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT');
     exec('sudo iptables -A PAYPERBYTE -p udp --dport 53 -j ACCEPT');
+    exec('sudo iptables -A PAYPERBYTE -p udp --dport 67:68 --sport 67:68 -j ACCEPT');
     exec('sudo iptables -A PAYPERBYTE -p tcp --dport 3000 -j ACCEPT');
 
     // 5. Captive Portal redirection (in our NAT chain, not system's)
