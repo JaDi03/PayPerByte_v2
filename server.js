@@ -373,7 +373,14 @@ const bandwidthAgent = new BandwidthAgent();
 // ============================================================
 // NETWORK SETUP (Walled Garden)
 // ============================================================
-const WHITELIST_DOMAINS = ['api.circle.com', 'rpc.testnet.arc.network', 'faucet.testnet.arc.network'];
+const WHITELIST_DOMAINS = [
+    'api.circle.com', 
+    'rpc.testnet.arc.network', 
+    'faucet.testnet.arc.network',
+    'connectivitycheck.gstatic.com', // Android
+    'connectivitycheck.android.com', // Android
+    'captive.apple.com'              // iOS
+];
 
 async function setupWalledGarden() {
     if (process.platform === 'win32') {
@@ -384,19 +391,22 @@ async function setupWalledGarden() {
     
     // 1. Flush existing rules
     exec('sudo iptables -F FORWARD 2>/dev/null');
+    exec('sudo iptables -F INPUT 2>/dev/null'); // Be careful here, but needed for local access
     exec('sudo iptables -t nat -F PREROUTING 2>/dev/null');
 
     // 2. Allow established connections
     exec('sudo iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null');
+    exec('sudo iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null');
 
     // 3. Allow DNS (essential for portal to work)
+    exec('sudo iptables -A INPUT -p udp --dport 53 -j ACCEPT 2>/dev/null');
     exec('sudo iptables -A FORWARD -p udp --dport 53 -j ACCEPT 2>/dev/null');
-    exec('sudo iptables -A FORWARD -p tcp --dport 53 -j ACCEPT 2>/dev/null');
 
     // 4. Allow access to the portal itself (Port 3000)
+    exec('sudo iptables -A INPUT -p tcp --dport 3000 -j ACCEPT 2>/dev/null');
     exec('sudo iptables -A FORWARD -p tcp --dport 3000 -j ACCEPT 2>/dev/null');
 
-    // 5. Whitelist Circle & Arc infrastructure
+    // 5. Whitelist infrastructure
     for (const domain of WHITELIST_DOMAINS) {
         exec(`host -t a ${domain} 2>/dev/null`, (err, stdout) => {
             if (err) return;
