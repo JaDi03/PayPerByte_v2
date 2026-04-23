@@ -143,7 +143,7 @@ function getLocalIp() {
 class BandwidthAgent {
     constructor() {
         this.isRunning = false;
-        this.intervalMs = 5000;
+        this.intervalMs = 20000; // Increased to 20s for stability
         this.agentId = uuidv4();
     }
 
@@ -435,10 +435,8 @@ async function setupWalledGarden() {
     exec(`sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j DNAT --to-destination ${localIp}:3000 2>/dev/null`);
 
     // 7. Final Block: Drop everything else
-    setTimeout(() => {
-        exec('sudo iptables -A FORWARD -j DROP 2>/dev/null');
-        logEvent('system', 'Walled garden active - Captive Portal enabled');
-    }, 5000);
+    exec('sudo iptables -A FORWARD -j DROP 2>/dev/null');
+    logEvent('system', 'Walled garden active - Captive Portal enabled');
 }
 
 // ============================================================
