@@ -381,8 +381,22 @@ async function setupWalledGarden() {
         return;
     }
     logEvent('system', 'Setting up network walled garden...');
+    
+    // 1. Flush existing rules
     exec('sudo iptables -F FORWARD 2>/dev/null');
+    exec('sudo iptables -t nat -F PREROUTING 2>/dev/null');
+
+    // 2. Allow established connections
     exec('sudo iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null');
+
+    // 3. Allow DNS (essential for portal to work)
+    exec('sudo iptables -A FORWARD -p udp --dport 53 -j ACCEPT 2>/dev/null');
+    exec('sudo iptables -A FORWARD -p tcp --dport 53 -j ACCEPT 2>/dev/null');
+
+    // 4. Allow access to the portal itself (Port 3000)
+    exec('sudo iptables -A FORWARD -p tcp --dport 3000 -j ACCEPT 2>/dev/null');
+
+    // 5. Whitelist Circle & Arc infrastructure
     for (const domain of WHITELIST_DOMAINS) {
         exec(`host -t a ${domain} 2>/dev/null`, (err, stdout) => {
             if (err) return;
@@ -395,9 +409,16 @@ async function setupWalledGarden() {
             }
         });
     }
+
+    // 6. REDIRECTION: Redirect all HTTP (port 80) to the Portal (Captive Portal behavior)
+    // This makes the "Login to WiFi" notification appear on phones
+    const localIp = '10.42.0.1'; // Standard IP for NM Hotspot
+    exec(`sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j DNAT --to-destination ${localIp}:3000 2>/dev/null`);
+
+    // 7. Final Block: Drop everything else
     setTimeout(() => {
         exec('sudo iptables -A FORWARD -j DROP 2>/dev/null');
-        logEvent('system', 'Walled garden active - only whitelisted domains allowed');
+        logEvent('system', 'Walled garden active - Captive Portal enabled');
     }, 5000);
 }
 
