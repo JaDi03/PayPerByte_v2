@@ -329,12 +329,17 @@ class BandwidthAgent {
                 data: JSON.stringify(typedData)
             });
 
-            // 3. Build x402 payload
+            // 3. Build x402 payload with correct envelope
             const payload = {
-                scheme: "GatewayWalletBatched",
-                network: "eip155:5042002",
-                authorization: typedData.message,
-                signature: signRes.data?.signature
+                x402Version: '1.0',
+                resource: 'bandwidth',
+                accepted: true,
+                payload: {
+                    scheme: "GatewayWalletBatched",
+                    network: "eip155:5042002",
+                    authorization: typedData.message,
+                    signature: signRes.data?.signature
+                }
             };
 
             // 4. Verify
@@ -638,15 +643,23 @@ app.post('/api/access/unlock', async (req, res) => {
             }
         };
 
+        // Wrap the payload in the x402 envelope required by the SDK/Circle
+        const x402Envelope = {
+            x402Version: '1.0',
+            resource: 'bandwidth',
+            accepted: true,
+            payload: payload
+        };
+
         // Verify
-        const verify = await gateway.verify(payload, requirements);
+        const verify = await gateway.verify(x402Envelope, requirements);
         if (!verify.isValid) {
             console.error("Verify failed:", verify.invalidReason);
             return res.status(402).json({ error: "Invalid payment", reason: verify.invalidReason });
         }
 
         // Settle
-        const settle = await gateway.settle(payload, requirements);
+        const settle = await gateway.settle(x402Envelope, requirements);
         if (!settle.success) {
             console.error("Settle failed:", settle.errorReason);
             return res.status(500).json({ error: "Settlement failed", reason: settle.errorReason });
@@ -673,11 +686,11 @@ app.post('/api/access/unlock', async (req, res) => {
         totalRevenue += parseFloat(amountStr);
         logEvent('payment', `Access granted to ${clientIp.slice(0,12)}... Tx: ${settle.transaction?.slice(0,20)}`);
 
-        // Add iptables rules
+        // Add iptables rules to our custom chain
         if (process.platform !== 'win32') {
             const quotaBytes = mbLimit * 1024 * 1024;
-            exec(`sudo iptables -I FORWARD -s ${clientIp} -m quota --quota ${quotaBytes} -j ACCEPT 2>/dev/null`);
-            exec(`sudo iptables -I FORWARD -d ${clientIp} -m quota --quota ${quotaBytes} -j ACCEPT 2>/dev/null`);
+            exec(`sudo iptables -I PAYPERBYTE 1 -s ${clientIp} -m quota --quota ${quotaBytes} -j ACCEPT 2>/dev/null`);
+            exec(`sudo iptables -I PAYPERBYTE 1 -d ${clientIp} -m quota --quota ${quotaBytes} -j ACCEPT 2>/dev/null`);
         }
 
         const responseData = {
