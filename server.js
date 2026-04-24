@@ -244,7 +244,7 @@ class BandwidthAgent {
             if (data.status === 'renewing' && !data.renewingLock) {
                 data.renewingLock = true;
                 try {
-                    const success = await this.executeNanopayment(data);
+                    const success = await this.executeNanopayment(data, ip);
                     if (success) {
                         data.mbLimit += MB_PER_PAYMENT;
                         data.status = 'active';
@@ -263,7 +263,7 @@ class BandwidthAgent {
         }
     }
 
-    async executeNanopayment(userData) {
+    async executeNanopayment(userData, clientIp) {
         try {
             const amountStr = (PRICE_PER_MB * MB_PER_PAYMENT).toFixed(6);
             const amountBaseUnits = BigInt(Math.floor(parseFloat(amountStr) * 1000000)).toString();
