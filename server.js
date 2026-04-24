@@ -405,7 +405,10 @@ async function setupWalledGarden() {
         return;
     }
     logEvent('system', 'Setting up network walled garden (Safe Mode)...');
-    
+
+    // 0. Enable IP forwarding so laptop routes traffic between WiFi and internet
+    exec('echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward');
+
     // 1. Create custom chains if they don't exist (never touches system chains)
     exec('sudo iptables -N PAYPERBYTE 2>/dev/null');
     exec('sudo iptables -t nat -N PAYPERBYTE_NAT 2>/dev/null');
@@ -417,6 +420,9 @@ async function setupWalledGarden() {
     // 3. Hook into system chains (only if not already hooked)
     exec('sudo iptables -C FORWARD -j PAYPERBYTE 2>/dev/null || sudo iptables -I FORWARD 1 -j PAYPERBYTE');
     exec('sudo iptables -t nat -C PREROUTING -j PAYPERBYTE_NAT 2>/dev/null || sudo iptables -t nat -I PREROUTING 1 -j PAYPERBYTE_NAT');
+
+    // 3b. NAT masquerade: allows phone traffic to go out through ethernet to internet
+    exec('sudo iptables -t nat -C POSTROUTING -o enp9s0 -j MASQUERADE 2>/dev/null || sudo iptables -t nat -A POSTROUTING -o enp9s0 -j MASQUERADE');
 
     // 4. Allow established connections, DNS, DHCP and portal access
     exec('sudo iptables -A PAYPERBYTE -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT');
@@ -431,8 +437,9 @@ async function setupWalledGarden() {
 
     // 6. Final Block in our chain
     exec('sudo iptables -A PAYPERBYTE -j DROP');
-    logEvent('system', 'Walled garden active - System rules preserved');
+    logEvent('system', 'Walled garden active - IP forwarding enabled - NAT configured');
 }
+
 
 // ============================================================
 // STATIC FILES
