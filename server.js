@@ -51,8 +51,7 @@ const circleClient = initiateDeveloperControlledWalletsClient({
 });
 
 const gateway = new BatchFacilitatorClient({
-    apiKey: CIRCLE_API_KEY,
-    networks: ['eip155:5042002']
+    url: 'https://gateway-api-testnet.circle.com'
 });
 
 const publicClient = createPublicClient({
