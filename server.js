@@ -513,22 +513,25 @@ app.get('/api/wallet/identify', async (req, res) => {
             mac = `IP_${clientIp.replace(/\./g, '_')}`;
         }
 
+        const cleanMac = mac.replace(/[^a-zA-Z0-9]/g, '').substring(0, 32);
         const wsId = await ensureWalletSet();
-        const walletsRes = await circleClient.listWallets({ userId: mac });
+        
+        const walletsRes = await circleClient.listWallets({ walletSetId: wsId });
         let wallet = walletsRes.data?.wallets?.find(
-            w => w.blockchain === 'ARC-TESTNET' && w.walletSetId === wsId
+            w => w.blockchain === 'ARC-TESTNET' && w.refId === cleanMac
         );
 
         if (!wallet) {
             const createRes = await circleClient.createWallets({
-                idempotencyKey: uuidv5(mac, MAC_NAMESPACE),
+                idempotencyKey: uuidv4(),
                 accountType: 'EOA',
                 blockchains: ['ARC-TESTNET'],
                 count: 1,
-                userId: mac,
+                refId: cleanMac,
                 walletSetId: wsId
             });
             wallet = createRes.data?.wallets?.[0];
+            await new Promise(r => setTimeout(r, 2000)); // Wait for Circle to provision it
         }
 
         // Get balances
