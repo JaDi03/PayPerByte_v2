@@ -103,14 +103,26 @@ function App() {
       });
       if (res.data.success) {
         addTx('deposit', `Deposited ${depositAmount} USDC`);
-        // Refresh balances after delay
-        setTimeout(async () => {
-          const idRes = await api.get('/api/wallet/identify');
-          if (idRes.data.success) {
-            setWallet(idRes.data);
-          }
+        // Poll for balance update
+        const checkBalance = setInterval(async () => {
+          try {
+            const idRes = await api.get('/api/wallet/identify');
+            if (idRes.data.success) {
+              setWallet(idRes.data);
+              // If balance increased above threshold, finish loading
+              if (parseFloat(idRes.data.gatewayBalance) > 0.01) {
+                clearInterval(checkBalance);
+                setStep('dashboard');
+              }
+            }
+          } catch(e) {}
+        }, 5000);
+
+        // Fallback timeout after 60 seconds
+        setTimeout(() => {
+          clearInterval(checkBalance);
           setStep('dashboard');
-        }, 12000);
+        }, 60000);
       }
     } catch (e: any) {
       setError('Deposit failed: ' + (e.response?.data?.error || e.message));

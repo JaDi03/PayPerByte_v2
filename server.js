@@ -627,7 +627,7 @@ app.post('/api/pay/deposit', async (req, res) => {
             } catch (e) {
                 console.error('Deposit step 2 error:', e);
             }
-        }, 8000);
+        }, 25000);
 
         res.json({ success: true, txId: txRes.data?.transaction?.id });
     } catch (e) {
