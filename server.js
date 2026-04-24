@@ -339,18 +339,21 @@ class BandwidthAgent {
 
             // 4. Verify
             const verify = await gateway.verify(payload, requirements);
-            // When verify fails with insufficient_balance → block user
-            if (verify.invalidReason === 'insufficient_balance') {
-                const user = activeUsers.get(clientIp);
-                if (user) user.status = 'blocked';
-                if (process.platform !== 'win32') {
-                    exec(`sudo iptables -D PAYPERBYTE -s ${clientIp} -j ACCEPT 2>/dev/null`);
-                    exec(`sudo iptables -D PAYPERBYTE -d ${clientIp} -j ACCEPT 2>/dev/null`);
-                    exec(`sudo iptables -t nat -D PAYPERBYTE_NAT -s ${clientIp} -j RETURN 2>/dev/null`);
+            if (!verify.isValid) {
+                // When verify fails with insufficient_balance → block user
+                if (verify.invalidReason === 'insufficient_balance') {
+                    const user = activeUsers.get(clientIp);
+                    if (user) user.status = 'blocked';
+                    if (process.platform !== 'win32') {
+                        exec(`sudo iptables -D PAYPERBYTE -s ${clientIp} -j ACCEPT 2>/dev/null`);
+                        exec(`sudo iptables -D PAYPERBYTE -d ${clientIp} -j ACCEPT 2>/dev/null`);
+                        exec(`sudo iptables -t nat -D PAYPERBYTE_NAT -s ${clientIp} -j RETURN 2>/dev/null`);
+                    }
+                    logEvent('system', `🚫 Insufficient Gateway balance — blocking ${clientIp.slice(0,12)}`);
+                } else {
+                    logEvent('system', `Auto-renew verify failed: ${verify.invalidReason}`);
                 }
-                logEvent('system', `🚫 Insufficient Gateway balance — blocking ${clientIp.slice(0,12)}`);
-            } else {
-                logEvent('system', `Auto-renew verify failed: ${verify.invalidReason}`);
+                return false;
             }
 
             // 5. Settle
