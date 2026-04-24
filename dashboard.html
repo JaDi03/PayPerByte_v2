@@ -112,21 +112,22 @@
         @media (max-width:1200px) { .layout{grid-template-columns:1fr 380px} .sidebar{display:none} }
         @media (max-width:800px) { .layout{grid-template-columns:1fr} .right-panel{display:none} }
 
-        /* Merchant Settlement Section */
-        .merchant-section { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px; margin-bottom:20px; }
-        .merchant-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
-        .merchant-title { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); }
-        .merchant-card { background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:10px; padding:20px; display:flex; align-items:center; justify-content:space-between; }
-        .merchant-info { flex:1; }
-        .merchant-label { font-size:10px; text-transform:uppercase; color:var(--text-dim); font-weight:700; margin-bottom:4px; }
-        .merchant-balance-row { display:flex; align-items:baseline; gap:8px; }
-        .merchant-balance { font-size:32px; font-weight:900; font-family:'JetBrains Mono',monospace; color:var(--green); }
-        .merchant-currency { font-size:14px; color:var(--text-muted); font-weight:600; }
-        .merchant-address { font-size:10px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; margin-top:4px; }
-        .withdraw-btn { background:var(--green); color:var(--bg); border:none; border-radius:8px; padding:12px 24px; font-weight:800; font-size:13px; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; gap:8px; }
-        .withdraw-btn:hover { background:#34d399; transform:translateY(-1px); box-shadow:0 4px 12px var(--green-glow); }
-        .withdraw-btn:disabled { background:var(--text-dim); cursor:not-allowed; transform:none; box-shadow:none; }
-        .spinner { width:16px; height:16px; border:2px solid rgba(0,0,0,0.2); border-top-color:rgba(0,0,0,0.8); border-radius:50%; animation:spin 0.8s linear infinite; }
+        /* Merchant Sidebar (Earnings) */
+        .merchant-sidebar { padding: 16px; border-top: 1px solid var(--border); background: rgba(16,185,129,0.03); margin-top: 10px; }
+        .merchant-sidebar-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin-bottom: 12px; display: block; }
+        .merchant-sidebar-balance-wrap { margin-bottom: 14px; }
+        .merchant-sidebar-label { font-size: 9px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; margin-bottom: 2px; }
+        .merchant-sidebar-balance { font-size: 24px; font-weight: 900; font-family: 'JetBrains Mono', monospace; color: var(--green); line-height: 1; }
+        .merchant-sidebar-currency { font-size: 11px; color: var(--text-muted); margin-left: 2px; }
+        .merchant-sidebar-address { font-size: 9px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .withdraw-sidebar-btn { 
+            width: 100%; background: var(--green); color: var(--bg); border: none; border-radius: 6px; padding: 10px; 
+            font-weight: 800; font-size: 11px; cursor: pointer; transition: all 0.2s; 
+            display: flex; align-items: center; justify-content: center; gap: 6px; 
+        }
+        .withdraw-sidebar-btn:hover:not(:disabled) { background:#34d399; transform: translateY(-1px); box-shadow: 0 4px 12px var(--green-glow); }
+        .withdraw-sidebar-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .spinner { width:12px; height:12px; border:2px solid rgba(0,0,0,0.1); border-top-color:rgba(0,0,0,0.6); border-radius:50%; animation:spin 0.8s linear infinite; }
         @keyframes spin { to { transform:rotate(360deg); } }
     </style>
 </head>
@@ -145,6 +146,23 @@
         <div class="nav-item">
             <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
             Analytics
+        </div>
+
+        <!-- Merchant Settlement Sidebar -->
+        <div class="merchant-sidebar">
+            <span class="merchant-sidebar-title">Seller Earnings</span>
+            <div class="merchant-sidebar-balance-wrap">
+                <div class="merchant-sidebar-label">Gateway Balance</div>
+                <div style="display:flex; align-items:baseline">
+                    <span class="merchant-sidebar-balance" id="seller-gateway-balance">0.000000</span>
+                    <span class="merchant-sidebar-currency">USDC</span>
+                </div>
+                <div class="merchant-sidebar-address" id="seller-address" title="Merchant Wallet">0x000...000</div>
+            </div>
+            <button class="withdraw-sidebar-btn" id="withdraw-btn" onclick="handleWithdraw()">
+                <span id="withdraw-text">Withdraw to Wallet</span>
+                <div class="spinner" id="withdraw-spinner" style="display:none"></div>
+            </button>
         </div>
     </aside>
 
@@ -213,30 +231,6 @@
             </div>
             <div class="chart-container">
                 <canvas id="trafficChart"></canvas>
-            </div>
-        </div>
-
-        <!-- Merchant Settlement -->
-        <div class="merchant-section">
-            <div class="merchant-header">
-                <span class="merchant-title">Merchant Settlement (Circle Gateway)</span>
-                <span class="font-mono" style="font-size:10px;color:#22c55e">ON-CHAIN</span>
-            </div>
-            <div class="merchant-card">
-                <div class="merchant-info">
-                    <div class="merchant-label">Available Earnings</div>
-                    <div class="merchant-balance-row">
-                        <span class="merchant-balance" id="seller-gateway-balance">0.000000</span>
-                        <span class="merchant-currency">USDC</span>
-                    </div>
-                    <div class="merchant-address" id="seller-address">0x000...000</div>
-                </div>
-                <div class="merchant-actions">
-                    <button class="withdraw-btn" id="withdraw-btn" onclick="handleWithdraw()">
-                        <span id="withdraw-text">Withdraw to Wallet</span>
-                        <div class="spinner" id="withdraw-spinner" style="display:none"></div>
-                    </button>
-                </div>
             </div>
         </div>
 
@@ -429,7 +423,7 @@
         }
     }
 
-    setInterval(updateStats, 1000);
+    setInterval(updateStats, 800);
     updateStats();
 </script>
 </body>
