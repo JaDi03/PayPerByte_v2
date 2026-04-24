@@ -620,7 +620,17 @@ app.post('/api/access/unlock', async (req, res) => {
 
             logEvent('system', `402 Challenge for ${clientIp} - $${amountStr} USDC for ${MB_PER_PAYMENT}MB`);
 
-            res.setHeader('PAYMENT-REQUIRED', Buffer.from(JSON.stringify(requirements)).toString('base64'));
+            const paymentRequired = {
+                x402Version: 2,
+                resource: {
+                    url: '/api/access/unlock',
+                    description: `${MB_PER_PAYMENT}MB Bandwidth Access`,
+                    mimeType: 'application/octet-stream'
+                },
+                accepts: [requirements]
+            };
+
+            res.setHeader('PAYMENT-REQUIRED', Buffer.from(JSON.stringify(paymentRequired)).toString('base64'));
             return res.status(402).json({
                 error: "Payment Required",
                 message: `Pay $${amountStr} USDC for ${MB_PER_PAYMENT}MB access`,
@@ -648,21 +658,13 @@ app.post('/api/access/unlock', async (req, res) => {
             }
         };
 
-        // Wrap the payload in the x402 envelope required by SDK v3.0.2
-        const x402Envelope = {
-            x402Version: 1,
-            resource: {
-                url: 'http://192.168.4.1:3000',
-                description: 'Bandwidth Access',
-                mimeType: 'application/octet-stream'
-            },
-            accepted: requirements, // Must contain the payment requirements
-            payload: payload
-        };
+        // The payload from the client is already in the correct x402 format
+        // Pass it directly to verify/settle - no re-wrapping needed
+        const paymentPayload = payload;
 
         // Verify
         console.log(`[x402] Verifying payment for ${clientIp}...`);
-        const verify = await gateway.verify(x402Envelope, requirements);
+        const verify = await gateway.verify(paymentPayload, requirements);
         if (!verify.isValid) {
             console.error(`[x402] Verify FAILED for ${clientIp}:`, verify.invalidReason);
             if (verify.error) console.error("[x402] Error details:", verify.error);
@@ -671,7 +673,7 @@ app.post('/api/access/unlock', async (req, res) => {
 
         // Settle
         console.log(`[x402] Verification success. Settling payment...`);
-        const settle = await gateway.settle(x402Envelope, requirements);
+        const settle = await gateway.settle(paymentPayload, requirements);
         if (!settle.success) {
             console.error(`[x402] Settle FAILED for ${clientIp}:`, settle.errorReason);
             return res.status(500).json({ error: "Settlement failed", reason: settle.errorReason });
