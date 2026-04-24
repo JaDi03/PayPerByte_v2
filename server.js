@@ -329,11 +329,15 @@ class BandwidthAgent {
                 data: JSON.stringify(typedData)
             });
 
-            // 3. Build x402 payload with correct envelope
+            // 3. Build x402 payload with correct envelope (SDK v3.0.2 strict types)
             const payload = {
-                x402Version: '1.0',
-                resource: 'bandwidth',
-                accepted: true,
+                x402Version: 1.0, // Must be a number
+                resource: {
+                    url: 'http://192.168.4.1:3000',
+                    description: 'Bandwidth Access',
+                    mimeType: 'application/octet-stream'
+                },
+                accepted: {}, // Must be an object
                 payload: {
                     scheme: "GatewayWalletBatched",
                     network: "eip155:5042002",
@@ -644,11 +648,15 @@ app.post('/api/access/unlock', async (req, res) => {
             }
         };
 
-        // Wrap the payload in the x402 envelope required by the SDK/Circle
+        // Wrap the payload in the x402 envelope required by SDK v3.0.2
         const x402Envelope = {
-            x402Version: '1.0',
-            resource: 'bandwidth',
-            accepted: true,
+            x402Version: 1.0, // Must be a number
+            resource: {
+                url: 'http://192.168.4.1:3000',
+                description: 'Bandwidth Access',
+                mimeType: 'application/octet-stream'
+            },
+            accepted: {}, // Must be an object
             payload: payload
         };
 
