@@ -7,7 +7,8 @@ import dotenv from 'dotenv';
 import { exec } from 'child_process';
 import { BatchFacilitatorClient } from '@circle-fin/x402-batching/server';
 import cors from 'cors';
-import { toHex, getAddress, createPublicClient, http } from 'viem';
+import { toHex, getAddress, createPublicClient, createWalletClient, http } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
 import { arcTestnet } from 'viem/chains';
 import crypto from 'crypto';
 
@@ -487,6 +488,105 @@ app.get('/success.txt', (req, res) => {
 // ============================================================
 // API ROUTES
 // ============================================================
+
+
+// --- Seller Management ---
+app.get('/api/seller/stats', async (req, res) => {
+    try {
+        const sellerAddress = process.env.CIRCLE_WALLET_ADDRESS;
+        const gatewayContract = process.env.GATEWAY_CONTRACT;
+        const usdcAddress = process.env.USDC_ARC;
+
+        // Read Gateway Balance
+        const gBalRaw = await publicClient.readContract({
+            address: getAddress(gatewayContract),
+            abi: [{
+                name: 'availableBalance',
+                type: 'function',
+                stateMutability: 'view',
+                inputs: [
+                    { name: 'token', type: 'address' },
+                    { name: 'depositor', type: 'address' }
+                ],
+                outputs: [{ name: '', type: 'uint256' }]
+            }],
+            functionName: 'availableBalance',
+            args: [getAddress(usdcAddress), getAddress(sellerAddress)]
+        });
+
+        // Read Wallet Balance
+        const wBalRaw = await publicClient.readContract({
+            address: getAddress(usdcAddress),
+            abi: [{
+                name: 'balanceOf',
+                type: 'function',
+                stateMutability: 'view',
+                inputs: [{ name: 'account', type: 'address' }],
+                outputs: [{ name: '', type: 'uint256' }]
+            }],
+            functionName: 'balanceOf',
+            args: [getAddress(sellerAddress)]
+        });
+
+        res.json({
+            success: true,
+            address: sellerAddress,
+            gatewayBalance: (Number(gBalRaw) / 1000000).toFixed(6),
+            walletBalance: (Number(wBalRaw) / 1000000).toFixed(6)
+        });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.post('/api/seller/withdraw', async (req, res) => {
+    try {
+        const privateKey = process.env.SELLER_PRIVATE_KEY;
+        if (!privateKey || privateKey === '') {
+            throw new Error("SELLER_PRIVATE_KEY is not configured in .env");
+        }
+
+        const sellerAddress = process.env.CIRCLE_WALLET_ADDRESS;
+        const gatewayContract = process.env.GATEWAY_CONTRACT;
+        const usdcAddress = process.env.USDC_ARC;
+        const { amount } = req.body;
+
+        if (!amount || isNaN(amount) || parseFloat(amount) <= 0) {
+            throw new Error("Invalid amount");
+        }
+
+        const amountBaseUnits = BigInt(Math.floor(parseFloat(amount) * 1000000));
+        const account = privateKeyToAccount(privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`);
+        
+        const walletClient = createWalletClient({
+            account,
+            chain: arcTestnet,
+            transport: http(process.env.ARC_RPC)
+        });
+
+        const hash = await walletClient.writeContract({
+            address: getAddress(gatewayContract),
+            abi: [{
+                name: 'withdraw',
+                type: 'function',
+                stateMutability: 'nonpayable',
+                inputs: [
+                    { name: 'token', type: 'address' },
+                    { name: 'amount', type: 'uint256' }
+                ],
+                outputs: []
+            }],
+            functionName: 'withdraw',
+            args: [getAddress(usdcAddress), amountBaseUnits]
+        });
+
+        logEvent('system', `Seller withdrawal initiated: ${amount} USDC. Tx: ${hash}`);
+        res.json({ success: true, hash });
+    } catch (e) {
+        console.error("Withdrawal error:", e);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
 
 // --- Agent Status ---
 app.get('/api/agent/status', (req, res) => {

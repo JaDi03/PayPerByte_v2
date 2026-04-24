@@ -111,6 +111,23 @@
 
         @media (max-width:1200px) { .layout{grid-template-columns:1fr 380px} .sidebar{display:none} }
         @media (max-width:800px) { .layout{grid-template-columns:1fr} .right-panel{display:none} }
+
+        /* Merchant Settlement Section */
+        .merchant-section { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px; margin-bottom:20px; }
+        .merchant-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+        .merchant-title { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); }
+        .merchant-card { background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:10px; padding:20px; display:flex; align-items:center; justify-content:space-between; }
+        .merchant-info { flex:1; }
+        .merchant-label { font-size:10px; text-transform:uppercase; color:var(--text-dim); font-weight:700; margin-bottom:4px; }
+        .merchant-balance-row { display:flex; align-items:baseline; gap:8px; }
+        .merchant-balance { font-size:32px; font-weight:900; font-family:'JetBrains Mono',monospace; color:var(--green); }
+        .merchant-currency { font-size:14px; color:var(--text-muted); font-weight:600; }
+        .merchant-address { font-size:10px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; margin-top:4px; }
+        .withdraw-btn { background:var(--green); color:var(--bg); border:none; border-radius:8px; padding:12px 24px; font-weight:800; font-size:13px; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; gap:8px; }
+        .withdraw-btn:hover { background:#34d399; transform:translateY(-1px); box-shadow:0 4px 12px var(--green-glow); }
+        .withdraw-btn:disabled { background:var(--text-dim); cursor:not-allowed; transform:none; box-shadow:none; }
+        .spinner { width:16px; height:16px; border:2px solid rgba(0,0,0,0.2); border-top-color:rgba(0,0,0,0.8); border-radius:50%; animation:spin 0.8s linear infinite; }
+        @keyframes spin { to { transform:rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -199,6 +216,30 @@
             </div>
         </div>
 
+        <!-- Merchant Settlement -->
+        <div class="merchant-section">
+            <div class="merchant-header">
+                <span class="merchant-title">Merchant Settlement (Circle Gateway)</span>
+                <span class="font-mono" style="font-size:10px;color:#22c55e">ON-CHAIN</span>
+            </div>
+            <div class="merchant-card">
+                <div class="merchant-info">
+                    <div class="merchant-label">Available Earnings</div>
+                    <div class="merchant-balance-row">
+                        <span class="merchant-balance" id="seller-gateway-balance">0.000000</span>
+                        <span class="merchant-currency">USDC</span>
+                    </div>
+                    <div class="merchant-address" id="seller-address">0x000...000</div>
+                </div>
+                <div class="merchant-actions">
+                    <button class="withdraw-btn" id="withdraw-btn" onclick="handleWithdraw()">
+                        <span id="withdraw-text">Withdraw to Wallet</span>
+                        <div class="spinner" id="withdraw-spinner" style="display:none"></div>
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Devices -->
         <div class="devices-section">
             <div class="devices-header">
@@ -260,11 +301,11 @@
         try {
             const res = await fetch('/api/stats');
             const data = await res.json();
-
+            
+            // Agent stats
             const totalSigs = data.totalSignatures || 0;
             const revenue = parseFloat(data.totalRevenue || 0);
 
-            // Hero
             const sigEl = document.getElementById('total-signatures');
             if (totalSigs !== prevSigs) {
                 sigEl.classList.remove('count-bump');
@@ -274,12 +315,24 @@
                 void document.getElementById('sig-hero').offsetWidth;
                 document.getElementById('sig-hero').classList.add('sig-flash');
             }
+            
             sigEl.innerText = totalSigs;
+            document.getElementById('revenue').innerText = revenue.toFixed(6);
             document.getElementById('hero-revenue').innerText = '$' + revenue.toFixed(4);
             document.getElementById('hero-devices').innerText = data.activeConnections;
-            document.getElementById('revenue').innerText = revenue.toFixed(6);
+            document.getElementById('device-count').innerText = data.activeConnections + ' total';
             document.getElementById('sig-count-meta').innerText = totalSigs;
-            document.getElementById('device-count').innerText = `${data.activeConnections} total`;
+
+            // Seller stats
+            const sellerRes = await fetch('/api/seller/stats');
+            const sellerData = await sellerRes.json();
+            if (sellerData.success) {
+                document.getElementById('seller-gateway-balance').innerText = sellerData.gatewayBalance;
+                document.getElementById('seller-address').innerText = sellerData.address;
+                
+                // Disable button if no balance
+                document.getElementById('withdraw-btn').disabled = parseFloat(sellerData.gatewayBalance) <= 0;
+            }
 
             // Signature rate chart
             const rate = totalSigs - prevSigs;
@@ -338,6 +391,41 @@
             }
         } catch(e) {
             console.error('Dashboard error', e);
+        }
+    }
+
+    async function handleWithdraw() {
+        const btn = document.getElementById('withdraw-btn');
+        const text = document.getElementById('withdraw-text');
+        const spinner = document.getElementById('withdraw-spinner');
+        const currentBalance = document.getElementById('seller-gateway-balance').innerText;
+
+        if (!confirm(`Are you sure you want to withdraw ${currentBalance} USDC to your merchant wallet?`)) return;
+
+        try {
+            btn.disabled = true;
+            text.innerText = 'Withdrawing...';
+            spinner.style.display = 'block';
+
+            const res = await fetch('/api/seller/withdraw', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount: currentBalance })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                alert(`Withdrawal successful!\nTransaction Hash: ${data.hash}`);
+                updateStats();
+            } else {
+                alert(`Withdrawal failed: ${data.error}`);
+            }
+        } catch (e) {
+            alert(`Error: ${e.message}`);
+        } finally {
+            btn.disabled = false;
+            text.innerText = 'Withdraw to Wallet';
+            spinner.style.display = 'none';
         }
     }
 
