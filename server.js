@@ -275,7 +275,7 @@ class BandwidthAgent {
                 asset: USDC_ARC,
                 amount: amountBaseUnits,
                 payTo: getAddress(MERCHANT_WALLET),
-                maxTimeoutSeconds: 30,
+                maxTimeoutSeconds: 345600,
                 extra: {
                     name: "GatewayWalletBatched",
                     version: "1",
@@ -285,7 +285,7 @@ class BandwidthAgent {
 
             // 2. Sign authorization
             const nonce = toHex(uuidv4().replace(/-/g, ''), { size: 32 });
-            const validBefore = Math.floor(Date.now() / 1000) + 3600;
+            const validBefore = Math.floor(Date.now() / 1000) + 345600; // 4 days
 
             const typedData = {
                 domain: {
@@ -328,15 +328,15 @@ class BandwidthAgent {
                 data: JSON.stringify(typedData)
             });
 
-            // 3. Build x402 payload with correct envelope (SDK v3.0.2)
+            // 3. Build full x402 payload (SDK v3.0.2)
             const payload = {
-                x402Version: 1,
+                x402Version: 2,
                 resource: {
-                    url: 'http://192.168.4.1:3000',
+                    url: '/api/access/unlock',
                     description: 'Bandwidth Access',
                     mimeType: 'application/octet-stream'
                 },
-                accepted: requirements, // Must contain the payment requirements
+                accepted: requirements,
                 payload: {
                     scheme: "GatewayWalletBatched",
                     network: "eip155:5042002",
@@ -706,11 +706,14 @@ app.post('/api/access/unlock', async (req, res) => {
         totalRevenue += parseFloat(amountStr);
         logEvent('payment', `Access granted to ${clientIp.slice(0,12)}... Tx: ${settle.transaction?.slice(0,20)}`);
 
-        // Add iptables rules to our custom chain
+        // Add iptables rules to grant internet access
         if (process.platform !== 'win32') {
             const quotaBytes = mbLimit * 1024 * 1024;
+            // Allow traffic to/from this IP in FORWARD chain (with quota)
             exec(`sudo iptables -I PAYPERBYTE 1 -s ${clientIp} -m quota --quota ${quotaBytes} -j ACCEPT 2>/dev/null`);
             exec(`sudo iptables -I PAYPERBYTE 1 -d ${clientIp} -m quota --quota ${quotaBytes} -j ACCEPT 2>/dev/null`);
+            // CRITICAL: Skip the captive portal redirect for this paid IP
+            exec(`sudo iptables -t nat -I PAYPERBYTE_NAT 1 -s ${clientIp} -j RETURN 2>/dev/null`);
         }
 
         const responseData = {
