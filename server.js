@@ -468,6 +468,31 @@ app.use(express.static(path.join(__dirname, 'dist')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'dashboard.html')));
 
 // ============================================================
+// CAPTIVE PORTAL DETECTION — Smart 204 for paid users
+// Android checks /generate_204, iOS checks /hotspot-detect.html
+// Return 204 for paid users → OS dismisses captive portal notification
+// ============================================================
+function handleCaptiveCheck(req, res) {
+    const clientIp = getClientIp(req);
+    const user = activeUsers.get(clientIp);
+    if (user && user.status === 'active') {
+        // Tell Android/iOS: "No captive portal — internet is free!"
+        return res.status(204).send();
+    }
+    // Unpaid: redirect to portal
+    res.redirect(`http://${req.headers.host || '192.168.4.1'}/`);
+}
+
+app.get('/generate_204', handleCaptiveCheck);
+app.get('/hotspot-detect.html', handleCaptiveCheck);
+app.get('/success.txt', (req, res) => {
+    const clientIp = getClientIp(req);
+    const user = activeUsers.get(clientIp);
+    if (user && user.status === 'active') return res.send('success');
+    res.redirect(`http://${req.headers.host || '192.168.4.1'}/`);
+});
+
+// ============================================================
 // API ROUTES
 // ============================================================
 
