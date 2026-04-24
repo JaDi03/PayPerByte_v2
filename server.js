@@ -514,24 +514,27 @@ app.get('/api/wallet/identify', async (req, res) => {
         }
 
         const cleanMac = mac.replace(/[^a-zA-Z0-9]/g, '').substring(0, 32);
-        const wsId = await ensureWalletSet();
-        
-        const walletsRes = await circleClient.listWallets({ walletSetId: wsId });
-        let wallet = walletsRes.data?.wallets?.find(
-            w => w.blockchain === 'ARC-TESTNET' && w.refId === cleanMac
-        );
+        let wallet;
 
+        // 1. Memory Cache: If device is already active, use the same wallet (bypasses API)
+        const existingUser = activeUsers.get(clientIp);
+        if (existingUser && existingUser.walletId) {
+            wallet = { id: existingUser.walletId, address: existingUser.walletAddress };
+        }
+
+        // 2. Deterministic Creation: Uses MAC to generate the same idempotencyKey every time
+        // If the wallet already exists, Circle API detects the idempotencyKey and returns the existing one!
         if (!wallet) {
+            const wsId = await ensureWalletSet();
             const createRes = await circleClient.createWallets({
-                idempotencyKey: uuidv4(),
+                idempotencyKey: uuidv5(cleanMac, MAC_NAMESPACE),
                 accountType: 'EOA',
                 blockchains: ['ARC-TESTNET'],
                 count: 1,
-                refId: cleanMac,
                 walletSetId: wsId
             });
             wallet = createRes.data?.wallets?.[0];
-            await new Promise(r => setTimeout(r, 2000)); // Wait for Circle to provision it
+            await new Promise(r => setTimeout(r, 1000)); // Wait for Circle to provision it
         }
 
         // Get balances
