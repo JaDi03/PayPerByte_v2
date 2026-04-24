@@ -252,7 +252,7 @@ function App() {
         {step === 'dashboard' && wallet && (
           <>
             {/* No Gateway Credit -> Need Deposit */}
-            {parseFloat(wallet.gatewayBalance) < 0.001 ? (
+            {parseFloat(wallet.gatewayBalance) < 0.01 ? (
               <div className="bg-slate-900 rounded-2xl border border-slate-800 p-5 space-y-4">
                 <div className="text-center space-y-2">
                   <div className="w-14 h-14 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto">
@@ -450,6 +450,6 @@ function App() {
 
 // Constants
 const MB_PER_PAYMENT = 1;
-const PRICE_PER_MB = 0.0038;
+const PRICE_PER_MB = 0.0015;
 
 export default App;

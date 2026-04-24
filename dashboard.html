@@ -146,52 +146,52 @@
             <div class="sig-stat">
                 <div class="sig-stat-value amber" id="total-signatures">0</div>
                 <div class="sig-stat-label">✍️ Nanopayment Signatures</div>
-                <div class="sig-stat-sub">esta sesión</div>
+                <div className="sig-stat-sub">this session</div>
             </div>
             <div class="sig-stat">
                 <div class="sig-stat-value green" id="hero-revenue">$0.0000</div>
-                <div class="sig-stat-label">💰 USDC Cobrado</div>
-                <div class="sig-stat-sub">total acumulado</div>
+                <div className="sig-stat-label">💰 USDC Collected</div>
+                <div className="sig-stat-sub">total accumulated</div>
             </div>
             <div class="sig-stat">
                 <div class="sig-stat-value cyan" id="hero-devices">0</div>
-                <div class="sig-stat-label">📡 Dispositivos Activos</div>
+                <div className="sig-stat-label">📡 Active Devices</div>
                 <div class="sig-stat-sub" id="hero-price">$0.0038 USDC / MB</div>
             </div>
         </div>
 
         <!-- Metrics -->
         <div class="metrics-grid">
-            <div class="metric-card cyan">
-                <div class="metric-label">Precio por MB</div>
+            <div className="metric-card cyan">
+                <div className="metric-label">Price per MB</div>
                 <div>
                     <span class="metric-value font-mono" id="price-per-mb">0.0038</span>
                     <span class="metric-suffix">USDC</span>
                 </div>
-                <div class="metric-sub">nanopago por cada 1 MB</div>
+                <div className="metric-sub">nanopayment per 1 MB</div>
             </div>
-            <div class="metric-card green">
-                <div class="metric-label">Revenue Total</div>
+            <div className="metric-card green">
+                <div className="metric-label">Total Revenue</div>
                 <div>
                     <span class="metric-value font-mono" id="revenue">0.0000</span>
                     <span class="metric-suffix">USDC</span>
                 </div>
                 <div class="metric-sub">via nanopayments x402</div>
             </div>
-            <div class="metric-card purple">
-                <div class="metric-label">Firmas Totales</div>
+            <div className="metric-card purple">
+                <div className="metric-label">Total Signatures</div>
                 <div>
                     <span class="metric-value font-mono" id="sig-count-meta">0</span>
                     <span class="metric-suffix">signatures</span>
                 </div>
-                <div class="metric-sub">EIP-3009 firmadas</div>
+                <div className="metric-sub">EIP-3009 signed</div>
             </div>
         </div>
 
         <!-- Chart -->
         <div class="chart-section">
             <div class="chart-header">
-                <span class="chart-title">Nanopayment Rate (firmas/seg)</span>
+                <span className="chart-title">Nanopayment Rate (sigs/sec)</span>
                 <span class="font-mono" style="font-size:10px;color:#475569">LIVE</span>
             </div>
             <div class="chart-container">
@@ -202,15 +202,15 @@
         <!-- Devices -->
         <div class="devices-section">
             <div class="devices-header">
-                <span>Clientes Conectados</span>
+                <span>Connected Clients</span>
                 <span class="font-mono" style="font-size:11px;color:#475569" id="device-count">0 total</span>
             </div>
-            <div class="device-col-header">
-                <div class="col-label">Dispositivo</div>
-                <div class="col-label">Firmas ✍️</div>
-                <div class="col-label">Pagado 💰</div>
-                <div class="col-label">Uso</div>
-                <div class="col-label">Estado</div>
+            <div className="device-col-header">
+                <div className="col-label">Device</div>
+                <div className="col-label">Signatures ✍️</div>
+                <div className="col-label">Paid 💰</div>
+                <div className="col-label">Usage</div>
+                <div className="col-label">Status</div>
             </div>
             <div id="device-list"></div>
         </div>
@@ -234,7 +234,7 @@
         data: {
             labels: Array(60).fill(''),
             datasets: [{
-                label: 'Firmas/s',
+                label: 'Sigs/s',
                 data: sigHistory,
                 borderColor: '#f59e0b',
                 backgroundColor: 'rgba(245,158,11,0.08)',
@@ -294,7 +294,7 @@
             // Devices table
             const list = document.getElementById('device-list');
             if (!data.connectedDevices || data.connectedDevices.length === 0) {
-                list.innerHTML = '<div style="padding:24px;text-align:center;color:#475569;font-size:13px;">Sin dispositivos conectados</div>';
+                list.innerHTML = '<div style="padding:24px;text-align:center;color:#475569;font-size:13px;">No connected devices</div>';
             } else {
                 list.innerHTML = data.connectedDevices.map(d => {
                     const pct = Math.min(100, parseFloat(d.progress) || 0);
@@ -308,11 +308,11 @@
                         </div>
                         <div style="text-align:center">
                             <div class="sig-count">${d.signaturesCount || 0}</div>
-                            <div style="font-size:9px;color:#475569;margin-top:2px">firmas EIP-3009</div>
+                            <div style="font-size:9px;color:#475569;margin-top:2px">EIP-3009 sigs</div>
                         </div>
                         <div>
-                            <div class="paid-amount">${d.totalPaid || '0.000000'}</div>
-                            <div style="font-size:9px;color:#475569;margin-top:2px">USDC pagado</div>
+                            <div className="paid-amount">${d.totalPaid || '0.000000'}</div>
+                            <div style="font-size:9px;color:#475569;margin-top:2px">USDC paid</div>
                         </div>
                         <div class="mb-bar-wrap">
                             <div class="mb-label">${d.usage}</div>
