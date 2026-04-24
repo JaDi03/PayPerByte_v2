@@ -778,16 +778,41 @@ app.post('/api/pay/sign-x402', async (req, res) => {
             data: JSON.stringify(typedData)
         });
 
-        const payload = {
-            scheme: "GatewayWalletBatched",
+        // Build the requirements (must match what /api/access/unlock expects)
+        const requirements = {
+            scheme: "exact",
             network: "eip155:5042002",
-            authorization: typedData.message,
-            signature: signRes.data?.signature
+            asset: USDC_ARC,
+            amount: amountBaseUnits,
+            payTo: getAddress(MERCHANT_WALLET),
+            maxTimeoutSeconds: 30,
+            extra: {
+                name: "GatewayWalletBatched",
+                version: "1",
+                verifyingContract: getAddress(GATEWAY_CONTRACT),
+            }
+        };
+
+        // Build the FULL x402 payment payload that Circle Gateway expects
+        const fullPayload = {
+            x402Version: 2,
+            resource: {
+                url: '/api/access/unlock',
+                description: `${MB_PER_PAYMENT}MB Bandwidth Access`,
+                mimeType: 'application/octet-stream'
+            },
+            accepted: requirements,
+            payload: {
+                scheme: "GatewayWalletBatched",
+                network: "eip155:5042002",
+                authorization: typedData.message,
+                signature: signRes.data?.signature
+            }
         };
 
         res.json({
-            payload,
-            encoded: Buffer.from(JSON.stringify(payload)).toString('base64')
+            payload: fullPayload,
+            encoded: Buffer.from(JSON.stringify(fullPayload)).toString('base64')
         });
     } catch (e) {
         console.error('Sign x402 error:', e);
