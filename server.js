@@ -38,7 +38,7 @@ const GATEWAY_CONTRACT = process.env.GATEWAY_CONTRACT || '0x0077777d7EBA4688BDeF
 const USDC_ARC = process.env.USDC_ARC || '0x3600000000000000000000000000000000000000';
 const ARC_RPC = process.env.ARC_RPC || 'https://rpc.testnet.arc.network';
 const PRICE_PER_MB = parseFloat(process.env.PRICE_PER_MB || '0.0038');
-const MB_PER_PAYMENT = parseInt(process.env.MB_PER_PAYMENT || '1');
+const MB_PER_PAYMENT = parseInt(process.env.MB_PER_PAYMENT || '50');
 const AUTO_RENEW_THRESHOLD = parseFloat(process.env.AUTO_RENEW_THRESHOLD || '0.8');
 const MAC_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
 
@@ -347,8 +347,18 @@ class BandwidthAgent {
 
             // 4. Verify
             const verify = await gateway.verify(payload, requirements);
-            if (!verify.isValid) {
-                throw new Error(`Verify failed: ${verify.invalidReason}`);
+            // When verify fails with insufficient_balance → block user
+            if (verify.invalidReason === 'insufficient_balance') {
+                const user = activeUsers.get(clientIp);
+                if (user) user.status = 'blocked';
+                if (process.platform !== 'win32') {
+                    exec(`sudo iptables -D PAYPERBYTE -s ${clientIp} -j ACCEPT 2>/dev/null`);
+                    exec(`sudo iptables -D PAYPERBYTE -d ${clientIp} -j ACCEPT 2>/dev/null`);
+                    exec(`sudo iptables -t nat -D PAYPERBYTE_NAT -s ${clientIp} -j RETURN 2>/dev/null`);
+                }
+                logEvent('system', `🚫 Insufficient Gateway balance — blocking ${clientIp.slice(0,12)}`);
+            } else {
+                logEvent('system', `Auto-renew verify failed: ${verify.invalidReason}`);
             }
 
             // 5. Settle
@@ -358,7 +368,17 @@ class BandwidthAgent {
             }
 
             totalRevenue += parseFloat(amountStr);
-            logEvent('payment', `Settled: ${settle.transaction?.slice(0,20)}... (+${MB_PER_PAYMENT}MB)`);
+
+            // Track per-user payment telemetry
+            const userEntry = activeUsers.get(clientIp);
+            if (userEntry) {
+                userEntry.signaturesCount = (userEntry.signaturesCount || 0) + 1;
+                userEntry.totalPaid = (userEntry.totalPaid || 0) + parseFloat(amountStr);
+                userEntry.mbConsumed = (userEntry.mbConsumed || 0) + parseFloat(amountStr) / PRICE_PER_MB;
+                userEntry.lastSignatureAt = Date.now();
+            }
+            const sig = activeUsers.get(clientIp)?.signaturesCount || 1;
+            logEvent('signature', `✍️ Firma #${sig} — ${amountStr} USDC — ${clientIp.slice(0,12)}`);
             return true;
 
         } catch (e) {
@@ -706,13 +726,16 @@ app.post('/api/access/unlock', async (req, res) => {
         totalRevenue += parseFloat(amountStr);
         logEvent('payment', `Access granted to ${clientIp.slice(0,12)}... Tx: ${settle.transaction?.slice(0,20)}`);
 
-        // Add iptables rules to grant internet access
+        // Add iptables rules to grant internet access (no quota - Gateway balance is the real limit)
         if (process.platform !== 'win32') {
-            const quotaBytes = mbLimit * 1024 * 1024;
-            // Allow traffic to/from this IP in FORWARD chain (with quota)
-            exec(`sudo iptables -I PAYPERBYTE 1 -s ${clientIp} -m quota --quota ${quotaBytes} -j ACCEPT 2>/dev/null`);
-            exec(`sudo iptables -I PAYPERBYTE 1 -d ${clientIp} -m quota --quota ${quotaBytes} -j ACCEPT 2>/dev/null`);
-            // CRITICAL: Skip the captive portal redirect for this paid IP
+            // Remove any old rules for this IP
+            exec(`sudo iptables -D PAYPERBYTE -s ${clientIp} -j ACCEPT 2>/dev/null`);
+            exec(`sudo iptables -D PAYPERBYTE -d ${clientIp} -j ACCEPT 2>/dev/null`);
+            exec(`sudo iptables -t nat -D PAYPERBYTE_NAT -s ${clientIp} -j RETURN 2>/dev/null`);
+            // Grant full access (Gateway balance is enforced by Circle during verify)
+            exec(`sudo iptables -I PAYPERBYTE 1 -s ${clientIp} -j ACCEPT 2>/dev/null`);
+            exec(`sudo iptables -I PAYPERBYTE 1 -d ${clientIp} -j ACCEPT 2>/dev/null`);
+            // Skip captive portal redirect for paid IP
             exec(`sudo iptables -t nat -I PAYPERBYTE_NAT 1 -s ${clientIp} -j RETURN 2>/dev/null`);
         }
 
@@ -843,14 +866,21 @@ app.get('/api/usage/me', (req, res) => {
 
 // --- Stats (for Dashboard) ---
 app.get('/api/stats', (req, res) => {
+    const totalSignatures = Array.from(activeUsers.values()).reduce((s, u) => s + (u.signaturesCount || 0), 0);
     res.json({
         totalRevenue: totalRevenue.toFixed(6),
+        totalSignatures,
         activeConnections: activeUsers.size,
         connectedDevices: Array.from(activeUsers.entries()).map(([ip, data]) => ({
             ip,
             deviceId: data.deviceId?.slice(0, 16) + '...',
+            mbUsed: ((data.bytesUsed || 0) / (1024 * 1024)).toFixed(2),
+            mbLimit: data.mbLimit || 0,
             usage: `${((data.bytesUsed || 0) / (1024 * 1024)).toFixed(1)} / ${data.mbLimit || 0} MB`,
             progress: data.mbLimit ? ((data.bytesUsed / (data.mbLimit * 1024 * 1024)) * 100).toFixed(0) : '0',
+            signaturesCount: data.signaturesCount || 0,
+            totalPaid: (data.totalPaid || 0).toFixed(6),
+            lastSignatureAt: data.lastSignatureAt || null,
             status: data.status || 'unknown'
         })),
         events: recentEvents,
