@@ -224,14 +224,7 @@ class BandwidthAgent {
         activeUsers.forEach((data, ip) => {
             const usagePercent = data.bytesUsed / (data.mbLimit * 1024 * 1024);
 
-            if (usagePercent >= 1.0) {
-                // Quota exceeded - block access
-                if (data.status !== 'blocked') {
-                    data.status = 'blocked';
-                    logEvent('system', `Quota exceeded for ${ip.slice(0,12)}... Blocking access`);
-                    this.blockIp(ip);
-                }
-            } else if (usagePercent >= AUTO_RENEW_THRESHOLD && data.status !== 'renewing') {
+            if (usagePercent >= AUTO_RENEW_THRESHOLD && data.status !== 'renewing') {
                 // Mark for auto-renewal
                 data.status = 'renewing';
                 logEvent('system', `User ${ip.slice(0,12)}... at ${(usagePercent*100).toFixed(0)}% - triggering auto-renew`);
@@ -255,7 +248,6 @@ class BandwidthAgent {
                     }
                 } catch (e) {
                     logEvent('system', `Auto-renew failed for ${ip.slice(0,12)}...: ${e.message}`);
-                    data.status = 'blocked';
                 } finally {
                     data.renewingLock = false;
                 }
@@ -398,10 +390,7 @@ class BandwidthAgent {
     }
 
     addQuotaRule(ip, mb) {
-        if (process.platform === 'win32' || !isValidIp(ip)) return;
-        const bytes = mb * 1024 * 1024;
-        exec(`sudo iptables -I PAYPERBYTE 1 -s ${ip} -m quota --quota ${bytes} -j ACCEPT 2>/dev/null`);
-        exec(`sudo iptables -I PAYPERBYTE 1 -d ${ip} -m quota --quota ${bytes} -j ACCEPT 2>/dev/null`);
+        // No quota rules anymore - gateway balance enforces limit
     }
 }
 
