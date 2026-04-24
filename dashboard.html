@@ -113,21 +113,23 @@
         @media (max-width:800px) { .layout{grid-template-columns:1fr} .right-panel{display:none} }
 
         /* Merchant Sidebar (Earnings) */
-        .merchant-sidebar { padding: 16px; border-top: 1px solid var(--border); background: rgba(16,185,129,0.03); margin-top: 10px; }
-        .merchant-sidebar-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin-bottom: 12px; display: block; }
-        .merchant-sidebar-balance-wrap { margin-bottom: 14px; }
-        .merchant-sidebar-label { font-size: 9px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; margin-bottom: 2px; }
-        .merchant-sidebar-balance { font-size: 24px; font-weight: 900; font-family: 'JetBrains Mono', monospace; color: var(--green); line-height: 1; }
-        .merchant-sidebar-currency { font-size: 11px; color: var(--text-muted); margin-left: 2px; }
-        .merchant-sidebar-address { font-size: 9px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; margin-top: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .merchant-sidebar { padding: 18px; border-top: 1px solid var(--border); background: rgba(16,185,129,0.05); margin-top: 10px; }
+        .merchant-sidebar-title { font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--green); margin-bottom: 16px; display: block; border-bottom: 1px solid rgba(16,185,129,0.2); padding-bottom: 8px; }
+        .merchant-sidebar-balance-wrap { margin-bottom: 16px; }
+        .merchant-sidebar-label { font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 6px; display: block; }
+        .merchant-sidebar-balance { font-size: 28px; font-weight: 900; font-family: 'JetBrains Mono', monospace; color: var(--green); line-height: 1; }
+        .merchant-sidebar-currency { font-size: 13px; color: var(--text-muted); margin-left: 4px; font-weight: 600; }
+        .merchant-sidebar-address { font-size: 10px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace; margin-top: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-top: 1px solid var(--border); padding-top: 6px; }
+        .last-settlement-wrap { margin-top: 14px; padding: 10px; background: rgba(255,255,255,0.03); border-radius: 6px; border-left: 3px solid var(--amber); }
+        .last-settlement-time { font-size: 14px; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: var(--amber); display: block; margin-top: 2px; }
         .withdraw-sidebar-btn { 
-            width: 100%; background: var(--green); color: var(--bg); border: none; border-radius: 6px; padding: 10px; 
-            font-weight: 800; font-size: 11px; cursor: pointer; transition: all 0.2s; 
-            display: flex; align-items: center; justify-content: center; gap: 6px; 
+            width: 100%; background: var(--green); color: var(--bg); border: none; border-radius: 8px; padding: 12px; 
+            font-weight: 900; font-size: 13px; cursor: pointer; transition: all 0.2s; 
+            display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; 
         }
         .withdraw-sidebar-btn:hover:not(:disabled) { background:#34d399; transform: translateY(-1px); box-shadow: 0 4px 12px var(--green-glow); }
         .withdraw-sidebar-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .spinner { width:12px; height:12px; border:2px solid rgba(0,0,0,0.1); border-top-color:rgba(0,0,0,0.6); border-radius:50%; animation:spin 0.8s linear infinite; }
+        .spinner { width:14px; height:14px; border:2px solid rgba(0,0,0,0.1); border-top-color:rgba(0,0,0,0.6); border-radius:50%; animation:spin 0.8s linear infinite; }
         @keyframes spin { to { transform:rotate(360deg); } }
     </style>
 </head>
@@ -151,14 +153,22 @@
         <!-- Merchant Settlement Sidebar -->
         <div class="merchant-sidebar">
             <span class="merchant-sidebar-title">Seller Earnings</span>
+            
             <div class="merchant-sidebar-balance-wrap">
-                <div class="merchant-sidebar-label">Gateway Balance</div>
+                <span class="merchant-sidebar-label">Gateway Balance</span>
                 <div style="display:flex; align-items:baseline">
                     <span class="merchant-sidebar-balance" id="seller-gateway-balance">0.000000</span>
                     <span class="merchant-sidebar-currency">USDC</span>
                 </div>
-                <div class="merchant-sidebar-address" id="seller-address" title="Merchant Wallet">0x000...000</div>
             </div>
+
+            <div class="last-settlement-wrap">
+                <span class="merchant-sidebar-label" style="margin-bottom:0">Last Settlement</span>
+                <span class="last-settlement-time" id="last-settlement">Waiting...</span>
+            </div>
+
+            <div class="merchant-sidebar-address" id="seller-address" title="Merchant Wallet">0x000...000</div>
+
             <button class="withdraw-sidebar-btn" id="withdraw-btn" onclick="handleWithdraw()">
                 <span id="withdraw-text">Withdraw to Wallet</span>
                 <div class="spinner" id="withdraw-spinner" style="display:none"></div>
@@ -324,6 +334,19 @@
                 document.getElementById('seller-gateway-balance').innerText = sellerData.gatewayBalance;
                 document.getElementById('seller-address').innerText = sellerData.address;
                 
+                // Update Last Settlement
+                const lastTime = sellerData.lastSettlementTime;
+                const el = document.getElementById('last-settlement');
+                if (lastTime) {
+                    const diffMs = Date.now() - lastTime;
+                    const diffSec = Math.floor(diffMs / 1000);
+                    if (diffSec < 60) el.innerText = 'Just now';
+                    else if (diffSec < 120) el.innerText = '1 min ago';
+                    else el.innerText = Math.floor(diffSec / 60) + ' mins ago';
+                } else {
+                    el.innerText = 'Pending...';
+                }
+
                 // Disable button if no balance
                 document.getElementById('withdraw-btn').disabled = parseFloat(sellerData.gatewayBalance) <= 0;
             }

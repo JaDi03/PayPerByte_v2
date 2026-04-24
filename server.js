@@ -69,6 +69,10 @@ let recentEvents = [];
 let walletSetId = process.env.WALLET_SET_ID;
 let agentStatus = { state: 'idle', lastAction: null, lastRun: null };
 
+// Settlement Tracking
+let lastSettlementTime = null;
+let lastKnownGatewayBalance = 0;
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -532,12 +536,52 @@ app.get('/api/seller/stats', async (req, res) => {
             success: true,
             address: sellerAddress,
             gatewayBalance: (Number(gBalRaw) / 1000000).toFixed(6),
-            walletBalance: (Number(wBalRaw) / 1000000).toFixed(6)
+            walletBalance: (Number(wBalRaw) / 1000000).toFixed(6),
+            lastSettlementTime
         });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
 });
+
+// Background loop to track on-chain settlements
+async function monitorSettlements() {
+    try {
+        const sellerAddress = process.env.CIRCLE_WALLET_ADDRESS;
+        const gatewayContract = process.env.GATEWAY_CONTRACT;
+        const usdcAddress = process.env.USDC_ARC;
+        if (!sellerAddress || !gatewayContract) return;
+
+        const gBalRaw = await publicClient.readContract({
+            address: getAddress(gatewayContract),
+            abi: [{
+                name: 'availableBalance',
+                type: 'function',
+                stateMutability: 'view',
+                inputs: [{ name: 'token', type: 'address' }, { name: 'depositor', type: 'address' }],
+                outputs: [{ name: '', type: 'uint256' }]
+            }],
+            functionName: 'availableBalance',
+            args: [getAddress(usdcAddress), getAddress(sellerAddress)]
+        });
+
+        const currentBalance = Number(gBalRaw);
+        
+        // If balance increased, it's a settlement!
+        if (currentBalance > lastKnownGatewayBalance) {
+            if (lastKnownGatewayBalance > 0) {
+                lastSettlementTime = Date.now();
+                logEvent('system', `On-chain settlement detected! Balance increased to ${currentBalance / 1000000} USDC`);
+            }
+            lastKnownGatewayBalance = currentBalance;
+        }
+    } catch (e) {
+        // Silent fail for background monitor
+    }
+}
+
+// Check every 1 second as requested by user
+setInterval(monitorSettlements, 1000);
 
 app.post('/api/seller/withdraw', async (req, res) => {
     try {
