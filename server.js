@@ -538,11 +538,24 @@ app.get('/api/wallet/identify', async (req, res) => {
         let balance = "0.00";
         let gatewayBalance = "0.00";
         try {
-            const balRes = await circleClient.getWalletTokenBalance({ id: wallet.id });
-            const usdc = balRes.data?.tokenBalances?.find(b =>
-                b.token?.symbol?.includes('USDC')
-            );
-            balance = usdc ? usdc.amount : "0.00";
+            // Direct on-chain read for instant balance updates (bypasses indexing delays)
+            try {
+                const balRaw = await publicClient.readContract({
+                    address: getAddress(USDC_ARC),
+                    abi: [{
+                        name: 'balanceOf',
+                        type: 'function',
+                        stateMutability: 'view',
+                        inputs: [{ name: 'account', type: 'address' }],
+                        outputs: [{ name: '', type: 'uint256' }]
+                    }],
+                    functionName: 'balanceOf',
+                    args: [getAddress(wallet.address)]
+                });
+                balance = (Number(balRaw) / 1000000).toFixed(4);
+            } catch (chainErr) {
+                console.error("Direct balance read error:", chainErr.message);
+            }
 
             const gBalRaw = await publicClient.readContract({
                 address: getAddress(GATEWAY_CONTRACT),
