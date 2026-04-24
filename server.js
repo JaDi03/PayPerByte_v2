@@ -467,7 +467,7 @@ app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'dashboard
 function handleCaptiveCheck(req, res) {
     const clientIp = getClientIp(req);
     const user = activeUsers.get(clientIp);
-    if (user && user.status === 'active') {
+    if (user && (user.status === 'active' || user.status === 'renewing')) {
         // Tell Android/iOS: "No captive portal — internet is free!"
         return res.status(204).send();
     }
