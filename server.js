@@ -653,16 +653,19 @@ app.post('/api/access/unlock', async (req, res) => {
         };
 
         // Verify
+        console.log(`[x402] Verifying payment for ${clientIp}...`);
         const verify = await gateway.verify(x402Envelope, requirements);
         if (!verify.isValid) {
-            console.error("Verify failed:", verify.invalidReason);
+            console.error(`[x402] Verify FAILED for ${clientIp}:`, verify.invalidReason);
+            if (verify.error) console.error("[x402] Error details:", verify.error);
             return res.status(402).json({ error: "Invalid payment", reason: verify.invalidReason });
         }
 
         // Settle
+        console.log(`[x402] Verification success. Settling payment...`);
         const settle = await gateway.settle(x402Envelope, requirements);
         if (!settle.success) {
-            console.error("Settle failed:", settle.errorReason);
+            console.error(`[x402] Settle FAILED for ${clientIp}:`, settle.errorReason);
             return res.status(500).json({ error: "Settlement failed", reason: settle.errorReason });
         }
 
