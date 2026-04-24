@@ -609,7 +609,7 @@ app.post('/api/access/unlock', async (req, res) => {
                 asset: USDC_ARC,
                 amount: BigInt(Math.floor(parseFloat(amountStr) * 1000000)).toString(),
                 payTo: getAddress(MERCHANT_WALLET),
-                maxTimeoutSeconds: 30,
+                maxTimeoutSeconds: 345600,
                 extra: {
                     name: "GatewayWalletBatched",
                     version: "1",
@@ -649,7 +649,7 @@ app.post('/api/access/unlock', async (req, res) => {
             asset: USDC_ARC,
             amount: BigInt(Math.floor(parseFloat(amountStr) * 1000000)).toString(),
             payTo: getAddress(MERCHANT_WALLET),
-            maxTimeoutSeconds: 30,
+            maxTimeoutSeconds: 345600,
             extra: {
                 name: "GatewayWalletBatched",
                 version: "1",
@@ -734,7 +734,7 @@ app.post('/api/pay/sign-x402', async (req, res) => {
         const amountStr = (parseFloat(amount) * MB_PER_PAYMENT).toFixed(6);
         const amountBaseUnits = BigInt(Math.floor(parseFloat(amountStr) * 1000000)).toString();
         const nonce = toHex(uuidv4().replace(/-/g, ''), { size: 32 });
-        const validBefore = Math.floor(Date.now() / 1000) + 3600;
+        const validBefore = Math.floor(Date.now() / 1000) + 345600; // 4 days (matches maxTimeoutSeconds)
 
         const typedData = {
             domain: {
@@ -784,7 +784,7 @@ app.post('/api/pay/sign-x402', async (req, res) => {
             asset: USDC_ARC,
             amount: amountBaseUnits,
             payTo: getAddress(MERCHANT_WALLET),
-            maxTimeoutSeconds: 30,
+            maxTimeoutSeconds: 345600,
             extra: {
                 name: "GatewayWalletBatched",
                 version: "1",
