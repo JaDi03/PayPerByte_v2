@@ -241,7 +241,10 @@ function App() {
                 <p className="text-lg font-black font-mono">${parseFloat(wallet.balance).toFixed(4)}</p>
               </div>
               <div className="bg-slate-800/50 rounded-xl p-3">
-                <p className="text-[10px] text-amber-400 uppercase tracking-wider font-semibold mb-1">Gateway Credit</p>
+                <div className="flex justify-between items-start">
+                  <p className="text-[10px] text-amber-400 uppercase tracking-wider font-semibold mb-1">Gateway Credit</p>
+                  <button onClick={handleDeposit} disabled={loading} className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded hover:bg-amber-500/30 font-bold transition-colors">+ Top Up</button>
+                </div>
                 <p className="text-lg font-black font-mono text-amber-400">${parseFloat(wallet.gatewayBalance).toFixed(4)}</p>
               </div>
             </div>
