@@ -142,7 +142,7 @@ function getLocalIp() {
 class BandwidthAgent {
     constructor() {
         this.isRunning = false;
-        this.intervalMs = 20000; // Increased to 20s for stability
+        this.intervalMs = 2000; // Fast 2s loop for real-time nanopayment synchronization
         this.agentId = uuidv4();
     }
 
